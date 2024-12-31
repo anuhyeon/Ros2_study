@@ -16,12 +16,11 @@ def main(args=None):
     executor.add_node(pub)
     
     try:
-        executor.spin()
-    
+        executor.spin() 
     finally:
         executor.shutdown()
-        #sub.destroy_node()
         pub.destroy_node()
+        sub.destroy_node()
         rp.shutdown()
 
 if __name__ == "__main__":
