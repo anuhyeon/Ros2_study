@@ -1,4 +1,6 @@
 from setuptools import setup
+import os
+import glob
 
 package_name = 'my_first_package'
 
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', glob.glob(os.path.join('launch','*.launch.*' ))), # launch파일이 있다는 것을 알려줘야함.
     ],
     install_requires=['setuptools'],
     zip_safe=True,
