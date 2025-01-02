@@ -1,7 +1,7 @@
 # Request
-float32 linear_x
-float32 angular_z
-float32 dist
+float32 linear_x # 사용자가 요구하는 거북이의 선속도
+float32 angular_z # 사용자가 요구하는 거북이의 각속도
+float32 dist # 사용자가 이만큼 움직여라 라고 요구하는 거리
 ---
 # Result
 float32 pos_x
