@@ -15,7 +15,7 @@ class Turtlesub_Action(TurtlesimSubscriber): # Pose토픽을 구독해서 callba
         self.ac_server = ac_server # TurtlesimSubscriber클래스 필드에서 상속받은 거 + 인자로 전달받은 DistTurtleServer인스턴스를 저장하는 변수를 필드에 추가
         
     def callback(self, msg): # 상속받은 self.subscriber = self.create_subscription(Pose, '/turtle1/pose', self.callback,10)에서 실행할 callback함수 오버라이딩
-        self.ac_server.current_pose = msg # 이 코드를 거치면 터틀심이 움직일 때마다 ac_server.current_pose속성이 계속 업데이트 되는 것임.
+        self.ac_server.current_pose = msg # 이 코드를 거치면 터틀심이 움직일 때마다(pose를 subscribe할 때 마다) ac_server.current_pose속성이 계속 업데이트 되는 것임.
         
 class DistTurtleServer(Node):
     def __init__(self):
@@ -44,7 +44,7 @@ class DistTurtleServer(Node):
         
         msg = Twist() # cmd_vel 값
         msg.linear.x = goal_handle.request.linear_x # 사용자가 요청한 선속도(거북이를 이 속도로 움직여주세요)를 cmd_vel 메세지에 업데이트 -> 나중에 이걸 publish하면 사용자 요청대로 거북이가 움직이겠지?
-        msg.angular.x = goal_handle.request.angular_z
+        msg.angular.z = goal_handle.request.angular_z
         
         while True: # 0.01초마다 publish, feedbacl 힘.
             self.total_dist += self.calc_diff_pose() # 지금까지 거북이가 음직인 거리 계산
@@ -61,7 +61,7 @@ class DistTurtleServer(Node):
         
         result.pos_x = self.current_pose.x
         result.pos_y = self.current_pose.y
-        result.pos_thera = self.current_pose.theta
+        result.pos_theta = self.current_pose.theta
         result.result_dist = self.total_dist # 총 움직인 거리
         
         # 아래는 다음을 위한 초기화 하는 코드
