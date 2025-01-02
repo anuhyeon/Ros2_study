@@ -8,6 +8,8 @@ from my_first_package_msgs.action import DistTurtle # 우리가 만들려고 했
 from my_first_package.my_subscriber import TurtlesimSubscriber # 단지 pose를 구독해서 print하는 친구임.
 import time
 import math
+from rcl_interfaces.msg import SetParametersResult # 파라미터의 변경을 실시간으로 알 수 있도록 도와주는 친구임.
+from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange
 
 class Turtlesub_Action(TurtlesimSubscriber): # Pose토픽을 구독해서 callback함수로 해당 pose를 출력하는 클래스를 상속받음-> 필드에는 self.subscriber밖에 없음.
     def __init__(self,ac_server): # Turtlesub_Actiond의 인자로 ac_server(DistTurtleServer인스턴스)를 받음 -> DistTurtleServer인스턴스의 필드값을 업데이트 시키기기 위함. 이 작업이 없으면 해당 클래스DistTurtleServer에서 Pose를 구독해서 current_pose를 업데이트 시키는 코드를 추가해줘야함.
@@ -19,15 +21,55 @@ class Turtlesub_Action(TurtlesimSubscriber): # Pose토픽을 구독해서 callba
         
 class DistTurtleServer(Node):
     def __init__(self):
-        super().__init__('dist_turtle_action_server')
+        super().__init__('dist_turtle_action_server') # 터미널에서 해당 노드의 이름은 "/dist_turtle_action_server" 이거임!
         self.total_dist = 0 # 초기값 설정 
         self.is_fisrt_time = True # -> 처음 계산을 할지 말지 플래그 역할을 해주는 친구라고 보면 됨.
         self.current_pose = Pose() # 해당 속성을 다른 인스턴스에서 업데이트 시키기 위해서 Turtlesub_Action클래스에서 했던 작업을 했다고 보면됨.
-        self.previous_pose = Pose() # 이전 위치와 다음 위치의 차이를 통해서 움직인 거리를 계산 할 수 있음
+        self.previous_pose = Pose() # 이전 위치와 다음 위치의  차이를 통해서 움직인 거리를 계산 할 수 있음
         self.publisher = self.create_publisher(Twist, '/turtle1/cmd_vel', 10) # 이 친구를 통해서 거북이가 어떤 각속도와 어떤 선속도로 움직이게 할 수 있음.
          # 누군가가 이 액션 서버에게 request 요청을 한다면 execute_callback함수를 실행해라!
         self.action_server = ActionServer(self, DistTurtle, 'dist_turtle', self.execute_callback) # 액션 서버를 만드는 코드, DistTurtle-> Data definition, dist_turtle --> 내가 만들고자 하는 액션 서버의 이름 , dist_turtlet이름이라는 액션서버로 DistTurtle의 요청이 들어오면 execute_callback함수를 실행
+    
+    #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=log 출력 print 대신=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==-
+        self.get_logger().info('Dist turtle action server is started!!!!!!!!') # info레벨이 print와 같이 에러 정보를 보여주는 역할임.
+    #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==-=-=-=-
+
+        param_desc_quantile = ParameterDescriptor(
+                description = 'quantile_time description',
+                floating_point_range = [FloatingPointRange(
+                                            from_value = 0.0,
+                                            to_value = 1.0,
+                                            step = 0.01 )]
+            )
+    #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=파라미터 실습-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==-
+        self.declare_parameter('quantile_time', 0.75, param_desc_quantile) # 해당 패키지내의 파라미터 변수를 새롭게 선언하고 디폴트 값을 0.75로 설정해주는 코드
+        self.declare_parameter('almost_goal_time', 0.95)
+        # ros2에서 선언한 파라미터를 코드내에 불러와서 사용하기 위해서는 아래와 같은 코드를 작성해주어야함!
+        (quantile_time, almosts_time) = self.get_parameters(['quantile_time', 'almost_goal_time'])
+        print("qunatile_time and almost_goal_time is ", quantile_time.value, almosts_time.value)
         
+        self.quantile_time = quantile_time.value
+        self.almosts_time = almosts_time.value
+        
+        output_msg = "quantile_time_is " + str(self.quantile_time) + ". "
+        output_msg = output_msg + "and almost_goal_time is " + str(self.almosts_time) + ". "
+        self.get_logger().info(output_msg)
+        
+        self.add_on_set_parameters_callback(self.parameter_callback) # 누가 파라미터를 바꾸면 parameter_callback함수 실행 -> 즉, 누군가 파라미터를 바꾸면 바로 코드내에서 파라미터가 바로 바뀜
+    def parameter_callback(self, params): # 바뀐 파라미터들을 인자로 가져옴.
+        for param in params:
+            print(param.name, " is changed to ", param.value, "----> param(해당 패키지의 환경변수로써 변경되었음.")
+            
+            if param.name == 'quantile_time':
+                self.quantile_time = param.value # 코드 내에서도 param 변수가 바뀐 내용을 업데이트 해주어야함!
+            if param.name == 'almost_goal_time':
+                self.almosts_time = param.value
+            
+            print('quantile_time and almost_goal_time is ', self.quantile_time, self.almosts_time ,"---> 이건 코드내의 변수로서 변경된 것을 의미")
+            
+            return SetParametersResult(successful=True)
+    #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==-
+
     def calc_diff_pose(self):
         if self.is_fisrt_time:
             self.previous_pose.x = self.current_pose.x
@@ -51,6 +93,15 @@ class DistTurtleServer(Node):
             feedback_msg.remained_dist = goal_handle.request.dist - self.total_dist
             goal_handle.publish_feedback(feedback_msg) # 이 코드는 클라이언트에게 feedback_msg를 publish 하는 코드임.
             self.publisher.publish(msg) # 실제로 터틀심 거북이에게 클라이언트가 요청한 대로 거북이가 움직이도록 cmd_vel토픽으로 publish 함.
+            
+            tmp = feedback_msg.remained_dist - goal_handle.request.dist * self.quantile_time
+            tmp = abs(tmp)
+            
+            if tmp < 0.02:
+                output_msg = "The turtle passes the " + str(self.quantile_time) + "point. "
+                output_msg = output_msg + " : " + str(tmp) + ". "
+                self.get_logger().info(output_msg)
+            
             time.sleep(0.01)
             
             if feedback_msg.remained_dist < 0.2:
